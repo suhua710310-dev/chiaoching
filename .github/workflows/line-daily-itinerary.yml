@@ -1,0 +1,65 @@
+name: LINE daily itinerary
+on:
+  schedule:
+    - cron: '0,15 12 2-12 2 *'
+  workflow_dispatch:
+permissions: {}
+concurrency: line-daily-itinerary
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      LINE_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_USER: ${{ secrets.LINE_USER_ID }}
+      EVENT: ${{ github.event_name }}
+    steps:
+      - name: Send itinerary through LINE
+        shell: python
+        run: |
+          import datetime as dt
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          import uuid
+          from zoneinfo import ZoneInfo
+
+          itineraries = {
+              "2027-02-03": "2/3｜首爾｜仁川抵達與入住\n19:15 仁川 T2 抵達，領行李後搭 6011 巴士至誠信女大入口，步行到飯店。先查末班車。\n\n仁川機場 T2｜https://map.naver.com/p/search/%EC%9D%B8%EC%B2%9C%EA%B5%AD%EC%A0%9C%EA%B3%B5%ED%95%AD%20%EC%A0%9C2%EC%97%AC%EA%B0%9D%ED%84%B0%EB%AF%B8%EB%84%90\n誠信女大入口｜https://map.naver.com/p/search/%EC%84%B1%EC%8B%A0%EC%97%AC%EB%8C%80%EC%9E%85%EA%B5%AC%EC%97%AD\n飯店｜https://map.naver.com/p/search/%ED%94%84%EB%A0%8C%EB%93%A4%EB%A6%AC%20DH%20%EB%84%A4%EC%83%81%EC%8A%A4%20%ED%98%B8%ED%85%94\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681c18c3ffd3bcaaf458b",
+              "2027-02-04": "2/4｜首爾｜景福宮、仁寺洞、廣藏市場\n09:45 景福宮，11:30 仁寺洞，14:30 廣藏市場，16:30 後返飯店。去程地鐵 4 號線轉 3 號線。\n\n景福宮｜https://map.naver.com/p/search/%EA%B2%BD%EB%B3%B5%EA%B6%81\n仁寺洞｜https://map.naver.com/p/search/%EC%9D%B8%EC%82%AC%EB%8F%99\n廣藏市場｜https://map.naver.com/p/search/%EA%B4%91%EC%9E%A5%EC%8B%9C%EC%9E%A5\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda706815f9503db62f40e8c26",
+              "2027-02-05": "2/5｜首爾｜滑雪團\n06:40 從飯店出發，07:40 集合。搭地鐵 4 號線至旅行社指定站，請核對 11 號出口。滑雪場往返搭團車。\n\n東大門站｜https://map.naver.com/p/search/%EB%8F%99%EB%8C%80%EB%AC%B8%EC%97%AD\n東大門歷史文化公園站｜https://map.naver.com/p/search/%EB%8F%99%EB%8C%80%EB%AC%B8%EC%97%AD%EC%82%AC%EB%AC%B8%ED%99%94%EA%B3%B5%EC%9B%90%EC%97%AD\nElysian Gangchon｜https://map.naver.com/p/search/%EC%97%98%EB%A6%AC%EC%8B%9C%EC%95%88%20%EA%B0%95%EC%B4%8C%20%EC%8A%A4%ED%82%A4%EC%9E%A5\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda7068189a59df01acce16f3d",
+              "2027-02-06": "2/6｜首爾｜南山與明洞\n10:30 出發，11:30 南山首爾塔，13:30 明洞。搭 4 號線轉南山纜車或由忠武路搭循環巴士。纜車現場購票。\n\n南山纜車｜https://map.naver.com/p/search/%EB%82%A8%EC%82%B0%EC%BC%80%EC%9D%B4%EB%B8%94%EC%B9%B4\nN 首爾塔｜https://map.naver.com/p/search/N%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C\n明洞｜https://map.naver.com/p/search/%EB%AA%85%EB%8F%99%EA%B1%B0%EB%A6%AC\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681a49bf3e15037679725",
+              "2027-02-07": "2/7｜首爾｜昌德宮、北村、三清洞\n09:30 出發，10:15 昌德宮宮殿區，12:00 起北村與三清洞。4 號線於忠武路轉 3 號線至安國，依體力縮短坡道路段。\n\n安國站｜https://map.naver.com/p/search/%EC%95%88%EA%B5%AD%EC%97%AD\n昌德宮｜https://map.naver.com/p/search/%EC%B0%BD%EB%8D%95%EA%B6%81\n北村｜https://map.naver.com/p/search/%EB%B6%81%EC%B4%8C%ED%95%9C%EC%98%A5%EB%A7%88%EC%9D%84\n三清洞｜https://map.naver.com/p/search/%EC%82%BC%EC%B2%AD%EB%8F%99\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda706817591bbe6f3d9899247",
+              "2027-02-08": "2/8｜首爾｜Seoul Sky、石村湖與樂天百貨\n10:00 出發，11:15 Seoul Sky，13:30 石村湖或樂天百貨。搭 4 號線轉 2 號線至蠶室。\n\n蠶室站｜https://map.naver.com/p/search/%EC%9E%A0%EC%8B%A4%EC%97%AD\nSeoul Sky｜https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%8A%A4%EC%B9%B4%EC%9D%B4\n石村湖｜https://map.naver.com/p/search/%EC%84%9D%EC%B4%8C%ED%98%B8%EC%88%98\n樂天百貨｜https://map.naver.com/p/search/%EB%A1%AF%EB%8D%B0%EB%B0%B1%ED%99%94%EC%A0%90%20%EC%9E%A0%EC%8B%A4%EC%A0%90\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681ab8feafcb6b9cb31d4",
+              "2027-02-09": "2/9｜首爾 → 北京｜轉場\n首爾：飯店搭 4 號線到首爾站，轉 AREX 普通列車至金浦國際線。CZ318 依電子機票。北京：抵大興後搭機場線至草橋，轉 10 號線至團結湖；入住後三里屯晚餐。\n\n金浦國際線｜https://map.naver.com/p/search/%EA%B9%80%ED%8F%AC%EA%B5%AD%EC%A0%9C%EA%B3%B5%ED%95%AD%20%EA%B5%AD%EC%A0%9C%EC%84%A0\n首爾站｜https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%97%AD\n北京大興機場｜https://uri.amap.com/search?city=beijing&keyword=%E5%8C%97%E4%BA%AC%E5%A4%A7%E5%85%B4%E5%9B%BD%E9%99%85%E6%9C%BA%E5%9C%BA\n草橋站｜https://uri.amap.com/search?city=beijing&keyword=%E8%8D%89%E6%A1%A5%E5%9C%B0%E9%93%81%E7%AB%99\n團結湖站｜https://uri.amap.com/search?city=beijing&keyword=%E5%9B%A2%E7%BB%93%E6%B9%96%E5%9C%B0%E9%93%81%E7%AB%99\n三里屯太古里｜https://uri.amap.com/search?city=beijing&keyword=%E4%B8%89%E9%87%8C%E5%B1%AF%E5%A4%AA%E5%8F%A4%E9%87%8C\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681faa03fc180bc92920d",
+              "2027-02-10": "2/10｜北京｜天安門、故宮、景山、什剎海\n09:00 天安門，10:45 故宮午門入，14:15 景山，15:30 什剎海。地鐵 3 號線轉 2 號線到前門，依預約指定入口安檢。記得帶訂票證件。\n\n前門站｜https://uri.amap.com/search?city=beijing&keyword=%E5%89%8D%E9%97%A8%E5%9C%B0%E9%93%81%E7%AB%99\n天安門廣場｜https://uri.amap.com/search?city=beijing&keyword=%E5%A4%A9%E5%AE%89%E9%97%A8%E5%B9%BF%E5%9C%BA\n故宮午門｜https://uri.amap.com/search?city=beijing&keyword=%E6%95%85%E5%AE%AB%E5%8D%88%E9%97%A8\n景山公園｜https://uri.amap.com/search?city=beijing&keyword=%E6%99%AF%E5%B1%B1%E5%85%AC%E5%9B%AD%E5%8D%97%E9%97%A8\n什剎海｜https://uri.amap.com/search?city=beijing&keyword=%E4%BB%80%E5%88%B9%E6%B5%B7\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681c1bbcad8cc8bc9930f",
+              "2027-02-11": "2/11｜北京｜慕田峪長城\n原行程 07:15 前往集合區，實際集合時間依車票。地鐵至東直門，轉旅遊直通車。到景區確認接駁與封閉式纜車，先核對回程班次。\n\n東直門站｜https://uri.amap.com/search?city=beijing&keyword=%E4%B8%9C%E7%9B%B4%E9%97%A8%E5%9C%B0%E9%93%81%E7%AB%99\n東直門外公交站｜https://uri.amap.com/search?city=beijing&keyword=%E4%B8%9C%E7%9B%B4%E9%97%A8%E5%A4%96%E5%85%AC%E4%BA%A4%E7%AB%99\n慕田峪遊客中心｜https://uri.amap.com/search?city=beijing&keyword=%E6%85%95%E7%94%B0%E5%B3%AA%E9%95%BF%E5%9F%8E%E6%B8%B8%E5%AE%A2%E6%9C%8D%E5%8A%A1%E4%B8%AD%E5%BF%83\n慕田峪纜車｜https://uri.amap.com/search?city=beijing&keyword=%E6%85%95%E7%94%B0%E5%B3%AA%E9%95%BF%E5%9F%8E%E7%BC%86%E8%BD%A6\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda7068110b32cd725611aab0f",
+              "2027-02-12": "2/12｜北京｜天壇、前門、大柵欄\n09:30 天壇，12:30 前門，15:00 大柵欄。地鐵 5 號線到天壇東門；去前門在崇文門轉 2 號線。參觀祈年殿請查聯票。\n\n天壇東門站｜https://uri.amap.com/search?city=beijing&keyword=%E5%A4%A9%E5%9D%9B%E4%B8%9C%E9%97%A8%E5%9C%B0%E9%93%81%E7%AB%99\n祈年殿｜https://uri.amap.com/search?city=beijing&keyword=%E5%A4%A9%E5%9D%9B%E7%A5%88%E5%B9%B4%E6%AE%BF\n前門大街｜https://uri.amap.com/search?city=beijing&keyword=%E5%89%8D%E9%97%A8%E5%A4%A7%E8%A1%97\n大柵欄｜https://uri.amap.com/search?city=beijing&keyword=%E5%A4%A7%E6%A0%85%E6%A0%8F\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda70681e8bedcf0b96a77f92b",
+              "2027-02-13": "2/13｜北京｜雍和宮、五道營、返程\n09:00 退房，09:30 雍和宮，11:30 五道營，15:30 前往機場。取行李後到東直門轉首都機場線至 T3，CI518 依電子機票。\n\n雍和宮｜https://uri.amap.com/search?city=beijing&keyword=%E9%9B%8D%E5%92%8C%E5%AE%AB\n五道營｜https://uri.amap.com/search?city=beijing&keyword=%E4%BA%94%E9%81%93%E8%90%A5%E8%83%A1%E5%90%8C\n東直門站｜https://uri.amap.com/search?city=beijing&keyword=%E4%B8%9C%E7%9B%B4%E9%97%A8%E5%9C%B0%E9%93%81%E7%AB%99\n首都機場 T3｜https://uri.amap.com/search?city=beijing&keyword=%E5%8C%97%E4%BA%AC%E9%A6%96%E9%83%BD%E5%9B%BD%E9%99%85%E6%9C%BA%E5%9C%BAT3%E8%88%AA%E7%AB%99%E6%A5%BC\n\n完整 Notion 行程與交通站點\nhttps://app.notion.com/p/417922dda7068140aa06ec62f40a62bc",
+          }
+          test = os.environ['EVENT'] == 'workflow_dispatch'
+          tomorrow = dt.datetime.now(ZoneInfo('Asia/Taipei')).date() + dt.timedelta(days=1)
+          date = '2027-02-03' if test else tomorrow.isoformat()
+          itinerary = itineraries.get(date)
+          if itinerary is None:
+              print('No itinerary scheduled for this date.')
+              raise SystemExit(0)
+
+          text = ('【每日行程推播測試】\n' if test else '【明日行程】\n') + itinerary
+          retry_key = uuid.uuid4() if test else uuid.uuid5(uuid.NAMESPACE_URL, 'chiaoching/daily-itinerary/' + date)
+          payload = {'to': os.environ['LINE_USER'], 'messages': [{'type': 'text', 'text': text}]}
+          request = urllib.request.Request(
+              'https://api.line.me/v2/bot/message/push',
+              data=json.dumps(payload).encode(),
+              headers={'Authorization': 'Bearer ' + os.environ['LINE_TOKEN'],
+                       'Content-Type': 'application/json', 'X-Line-Retry-Key': str(retry_key)},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  print('LINE accepted the push request:', response.status)
+          except urllib.error.HTTPError as error:
+              if error.code == 409 and error.headers.get('x-line-accepted-request-id'):
+                  print('LINE already accepted the itinerary for this date.')
+              else:
+                  raise SystemExit(f'LINE rejected the push request: HTTP {error.code}')
