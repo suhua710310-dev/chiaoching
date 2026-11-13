@@ -1,0 +1,52 @@
+name: LINE ticket alerts
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '5 1,12 * * *'
+permissions: {}
+concurrency: line-ticket-alerts
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      LINE_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_USER: ${{ secrets.LINE_USER_ID }}
+      EVENT: ${{ github.event_name }}
+    steps:
+      - name: Send test or scheduled ticket reminder
+        shell: python
+        run: |
+          import datetime as dt
+          import json, os, urllib.request, uuid
+          from zoneinfo import ZoneInfo
+
+          now = dt.datetime.now(ZoneInfo('Asia/Taipei'))
+          test = os.environ['EVENT'] == 'workflow_dispatch'
+          reminders = {
+              ('2027-01-12', 'AM'): '慕田峪長城 2/11 門票｜依現行提前 30 天規則，今天可開始查看。實際開賣及名額請查官網：https://www.mutianyugreatwall.com/',
+              ('2027-02-03', 'PM'): '故宮 2/10 門票｜若沿用現行規則，今天台灣／北京 20:00（首爾 21:00）放票。請到官方小程序確認名額：https://www.dpm.org.cn/subject_booking/',
+              ('2027-02-04', 'AM'): '天安門廣場 2/10｜依現行規則已進入預約窗口，請確認 5 人預約與安檢要求：https://tamgw.beijing.gov.cn/',
+              ('2027-02-06', 'AM'): '南山纜車｜今天到現場買票，出門前請查看營運公告：https://www.cablecar.co.kr/customer.html',
+              ('2027-02-07', 'AM'): 'Seoul Sky 2/8｜請查官方票務的可購時段：https://seoulsky.lotteworld.com/price/info/ticket',
+              ('2027-02-09', 'AM'): '天壇 2/12、雍和宮 2/13｜請查天壇含祈年殿聯票及雍和宮實名票：https://www.bjgyol.com.cn/ https://piao.yonghegong.cn/',
+          }
+          slot = 'AM' if now.hour < 15 else 'PM'
+          key = (now.date().isoformat(), slot)
+          message = '雲端推播測試成功｜此訊息由 GitHub Actions 發出，電腦關機時也能執行。' if test else reminders.get(key)
+          if not message:
+              print('No reminder due.')
+              raise SystemExit(0)
+          if not os.environ.get('LINE_TOKEN') or not os.environ.get('LINE_USER'):
+              raise SystemExit('Required LINE secrets are missing.')
+          retry_key = uuid.uuid4() if test else uuid.uuid5(uuid.NAMESPACE_URL, 'chiaoching/ticket-alerts/' + '/'.join(key))
+          body = {'to': os.environ['LINE_USER'], 'messages': [{'type': 'text', 'text': message}]}
+          request = urllib.request.Request('https://api.line.me/v2/bot/message/push', data=json.dumps(body).encode(), headers={'Authorization': 'Bearer ' + os.environ['LINE_TOKEN'], 'Content-Type': 'application/json', 'X-Line-Retry-Key': str(retry_key)})
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  print('LINE accepted the push request:', response.status)
+          except urllib.error.HTTPError as error:
+              if error.code == 409 and error.headers.get('x-line-accepted-request-id'):
+                  print('LINE already accepted this reminder.')
+              else:
+                  raise SystemExit(f'LINE rejected the push request: HTTP {error.code}')
